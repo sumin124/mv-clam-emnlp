@@ -360,4 +360,4 @@ dependencies:
       - xxhash==3.5.0
       - yacs==0.1.8
       - yarl==1.9.4
-prefix: /data/project/sumin/miniconda3/envs/moleculeText
+prefix: /data/project/miniconda3/envs/moleculeText
