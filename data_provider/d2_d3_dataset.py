@@ -68,8 +68,6 @@ class pt_dataset_cid:
 
         if not hasattr(self, 'env'):
             self.connect_db(self.db_path, save_to_self=True)
-        # datapoint_pickled = self.env[env['cid']==cid]
-        # data = self.env[self.env['cid']==cid]
         data = self.env[idx]
         return data  
 
@@ -215,8 +213,6 @@ class pt_MolDataset(Dataset):
         self.text_max_len = text_max_len
         
         target_path = root
-        # target_path = os.path.join(root, '3d-dataset_toy.pt')
-        # target_path = os.path.join(root, '3d-dataset.pt')
         if 'PubChem' in root: 
             target_path = os.path.join(root, 'pubchem_2d_3d.pt') 
         if 'lm24' in root:
@@ -340,7 +336,7 @@ class pubchem_to_2d_3d(Dataset):
         #atoms = np.asarray(atoms)
         
         ## atom vectors
-        dictionary = Dictionary.load('/data/project/sumin/moleculeText/3D-MoLM/data_provider/unimol_dict.txt')
+        dictionary = Dictionary.load('/data/project/moleculeText/3D-MoLM/data_provider/unimol_dict.txt')
         dictionary.add_symbol("[MASK]", is_special=True)
         atom_vec = torch.from_numpy(dictionary.vec_index(atoms)).long()
 
@@ -434,8 +430,6 @@ class pickle_to_2d_3d(Dataset):
         for smile in tqdm(self.smiles_init):
             try:
                 atom_vec, dist, edge_type, coordinate = self.get_graph(smile)
-                # atom_vec, dist, edge_type, coordinate = atom_vec.unsqueeze(0), dist.unsqueeze(0).to(tensor_type), edge_type.unsqueeze(0), coordinate.unsqueeze(0).to(tensor_type)
-                #atom_vec, dist, edge_type, coordinate = atom_vec, dist.to(tensor_type), edge_type, coordinate.to(tensor_type)
                 self.atom_vecs.append(atom_vec)
                 self.dists.append(dist)
                 self.edge_types.append(edge_type)
@@ -467,7 +461,6 @@ class pickle_to_2d_3d(Dataset):
             
 
         except:
-            # res = AllChem.EmbedMolecule(mol, useRandomCoords=True) ########################################################
             res = AllChem.Compute2dCoords(mol)
             
             
@@ -479,18 +472,13 @@ class pickle_to_2d_3d(Dataset):
         #atoms = np.asarray(atoms)
         
         ## atom vectors
-        dictionary = Dictionary.load('/data/project/sumin/moleculeText/3D-MoLM/data_provider/unimol_dict.txt')
+        dictionary = Dictionary.load('/data/project/moleculeText/3D-MoLM/data_provider/unimol_dict.txt')
         dictionary.add_symbol("[MASK]", is_special=True)
         atom_vec = torch.from_numpy(dictionary.vec_index(atoms)).long()
 
         ## normalize coordinates:
         coordinates = coordinates - coordinates.mean(axis=0)
 
-        # ## add_special_token:
-        # atom_vec = torch.cat([torch.LongTensor([dictionary.bos()]), atom_vec, torch.LongTensor([dictionary.eos()])])
-        # coordinates = np.concatenate([np.zeros((1, 3)), coordinates, np.zeros((1, 3))], axis=0)
-        
-        ## obtain edge types; which is defined as the combination of two atom types
         edge_type = atom_vec.view(-1, 1) * len(dictionary) + atom_vec.view(1, -1)
         dist = distance_matrix(coordinates, coordinates).astype(np.float32)
         coordinates, dist = torch.from_numpy(coordinates), torch.from_numpy(dist)
@@ -545,8 +533,7 @@ class MyCollater:
         padded_dist = data_utils.collate_tokens_2d(dist, 0, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms, max_atoms]
         # print(text_batch)
         text_tokens = self.tokenizer(text_batch,
-                                     truncation=True, ###################################################
-                                     # truncation='only_second', ###################################################
+                                     truncation=True, 
                                      padding='max_length',
                                      add_special_tokens=True,
                                      max_length=self.text_max_len,
@@ -554,8 +541,6 @@ class MyCollater:
                                      return_attention_mask=True, 
                                      return_token_type_ids=False)
         
-        # d2_batch = Batch.from_data_list(d2_batch)
-        # print(d2_batch)
         d2_batch = self.d2_graph_encoder_batch(*d2_batch) ###########
 
         return (padded_atom_vec, padded_dist, padded_edge_type), text_tokens, d2_batch
@@ -644,39 +629,22 @@ class TrainCollater:
         padded_edge_type = data_utils.collate_tokens_2d(edge_type, 0, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms, max_atoms]
         padded_dist = data_utils.collate_tokens_2d(dist, 0, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms, max_atoms]
 
-#        print(f'length of batch, text, smiles_prompt: {len(batch)}\n')
-#        print(len(batch), len(text_batch), len(smiles_prompt))
-        #print(len(smiles_prompt))
         input_pair = [[p,t] for p, t in zip(smiles_prompt, text_batch)]
-        #print(f'length of input_pair: {len(input_pair)}\n')
-#        print()
-#        print(input_pair[0])
         self.tokenizer.padding_side = 'left'
         text_smiles_tokens = self.tokenizer(input_pair,
-                                            # stage 1 일 때는 truncation = True, stage 2 일 때는 only_second ??
-                                            # truncation=True, ###################################################
-                                            truncation='only_second', ###################################################
+                                            truncation='only_second', 
                                             padding='max_length',
                                             add_special_tokens=True,
                                             max_length=self.text_max_len,
                                             return_tensors='pt',
                                             return_attention_mask=True, 
                                             return_token_type_ids=True)
-       # print(f'length of tokenized input pair: {len(text_smiles_tokens)}\n')
         is_mol_token = (text_smiles_tokens.input_ids == self.mol_token_id)
-#        print(f' is_mol_token: {torch.sum(is_mol_token).item()}')
-#        print(f'batch: {8 * len(batch)}')
-        # assert torch.sum(is_mol_token).item() == 8 * len(batch)#, print(input_pair) ###################################
         try:
-            assert torch.sum(is_mol_token).item() == 2 * self.num_tokens * len(batch)#, print(input_pair) ###################################
+            assert torch.sum(is_mol_token).item() == 2 * self.num_tokens * len(batch)
         except:
-            # assert torch.sum(is_mol_token).item() == self.num_tokens * len(batch)#, print(input_pair) ###################################
-            assert torch.sum(is_mol_token).item() == 24 * len(batch)#, print(input_pair) ###################################
-
+            assert torch.sum(is_mol_token).item() == 24 * len(batch)
         text_smiles_tokens['is_mol_token'] = is_mol_token
-        #print('is_mol_token', (torch.sum(is_mol_token).item()))
-
-        # d2_batch = Batch.from_data_list(d2_batch)
         d2_batch = self.d2_graph_encoder_batch(*d2_batch) ###########
         
 
@@ -734,7 +702,6 @@ class InferenceCollater:
         d3_batch, d2_batch, smiles_prompt, text_batch, indices= zip(*batch)
         atom_vec, coordinates, edge_type, dist, smiles = zip(*d3_batch)
         padded_atom_vec = data_utils.collate_tokens(atom_vec, self.pad_idx, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms]
-        #padded_coordinates = self.collate_tokens_coords(coordinates, 0, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms, 3]
         padded_edge_type = data_utils.collate_tokens_2d(edge_type, 0, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms, max_atoms]
         padded_dist = data_utils.collate_tokens_2d(dist, 0, left_pad=False, pad_to_multiple=self.pad_to_multiple) # shape = [batch_size, max_atoms, max_atoms]
         
